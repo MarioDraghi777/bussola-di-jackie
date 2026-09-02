@@ -4,14 +4,12 @@ export type PlaceStatus = 'da_provare' | 'visitato' | 'scartato';
 
 export type GeocodeSource = 'nominatim' | 'manual_pin' | 'gmaps_link' | 'manual_coords';
 
-/** Una delle 6 famiglie cromatiche fisse usate per i pin sulla mappa. */
-export type ColorFamily = 1 | 2 | 3 | 4 | 5 | 6;
-
 export interface Category {
   id: string; // slug, es. "pizzeria"
   label: string;
   emoji: string;
-  colorFamily: ColorFamily;
+  /** colore scelto liberamente dall'utente (hex), usato per il pin sulla mappa e i chip */
+  color: string;
   /** true per le categorie di serie fornite con l'app (non cancellabili, solo rinominabili) */
   builtIn: boolean;
   order: number;

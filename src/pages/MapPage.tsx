@@ -22,7 +22,7 @@ export function MapPage() {
       id: place.id,
       lng: place.lng,
       lat: place.lat,
-      color: cat ? `var(--fam-${cat.colorFamily})` : NO_CATEGORY_COLOR,
+      color: cat ? cat.color : NO_CATEGORY_COLOR,
       emoji: cat?.emoji ?? '📍',
       onClick: () => navigate('posto', place.id),
     };
@@ -79,7 +79,7 @@ export function MapPage() {
           .filter((c) => places.value.some((p) => p.categories[0] === c.id))
           .map((c) => (
             <span key={c.id} class="map-legend-item">
-              <span class="map-legend-dot" style={{ background: `var(--fam-${c.colorFamily})` }} />
+              <span class="map-legend-dot" style={{ background: c.color }} />
               {c.emoji} {c.label}
             </span>
           ))}

@@ -31,7 +31,9 @@ Puoi modificare in qualsiasi momento: nome, città, posizione (pulsante "Modific
 
 ### Mappa
 
-Tab **Mappa**: tutti i posti come pin colorati per categoria (raggruppate in 6 famiglie cromatiche, ogni categoria ha anche un'emoji propria così l'identità non dipende solo dal colore), filtrabili con lo stesso pannello filtri della lista. Un tap su un pin apre la scheda del posto.
+Tab **Mappa**: tutti i posti come pin colorati per categoria (ogni categoria ha un colore scelto liberamente e un'emoji propria, così l'identità non dipende mai solo dal colore), filtrabili con lo stesso pannello filtri della lista. Un tap su un pin apre la scheda del posto.
+
+Il colore di una categoria si assegna già al momento dell'aggiunta rapida (menu a tendina "Categoria" nella schermata Aggiungi): il pin sulla mappa nasce già del colore giusto, senza dover passare dalla scheda del posto. Si possono comunque aggiungere altre categorie in un secondo momento dalla scheda.
 
 ### Vicino a me
 
@@ -53,6 +55,10 @@ Il parser riconosce automaticamente le sezioni (Colazione, Pranzo/cena, Aperitiv
 
 Alla fine (o anche durante) arrivi alla **revisione**: ogni riga mostra cosa ha trovato il geocoder, un'eventuale somiglianza con un posto già salvato, e i controlli per approvare, correggere (nome, città, categorie, tag, posizione) o scartare. Solo le righe **approvate** vengono salvate quando premi "Importa N posti". Le righe ambigue o non trovate non vanno mai perse: restano nella revisione finché non le risolvi o le scarti tu esplicitamente.
 
+### Invitare altre persone
+
+**Impostazioni → Invita amici**: pulsanti pronti per condividere il link dell'app via WhatsApp, Telegram, email (più un pulsante di condivisione nativa del telefono, se il browser lo supporta). Chi apre il link ha una propria lista indipendente sul proprio dispositivo — non è una lista condivisa, ognuno ha i propri dati. Per confrontare o unire due liste si usa l'export/import JSON descritto sotto.
+
 ### Backup ed export
 
 **Impostazioni → Backup e portabilità**:
@@ -66,7 +72,7 @@ Da un browser mobile, "Aggiungi a schermata Home" installa l'app con icona propr
 
 ## Come aggiungere una categoria nuova
 
-Nessun tocco al codice: **Impostazioni → Categorie → Aggiungi categoria**. Scegli un'emoji, un nome e una delle 6 famiglie di colore (usate per distinguere i pin sulla mappa). Le categorie di serie si possono rinominare ma non eliminare (per non rompere il mapping automatico dell'import); quelle che aggiungi tu si possono anche eliminare — i posti che le usavano restano, semplicemente perdono quel tag di categoria.
+Nessun tocco al codice: **Impostazioni → Categorie → Aggiungi categoria**. Scegli un'emoji, un nome e un colore a piacere (selettore colore nativo, qualunque tonalità): quel colore è quello con cui apparirà il pin sulla mappa. Le categorie di serie si possono rinominare e ricolorare ma non eliminare (per non rompere il mapping automatico dell'import); quelle che aggiungi tu si possono anche eliminare — i posti che le usavano restano, semplicemente perdono quel tag di categoria.
 
 ## Come faccio il backup
 

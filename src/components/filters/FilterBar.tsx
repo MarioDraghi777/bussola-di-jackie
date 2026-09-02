@@ -47,7 +47,7 @@ export function FilterBar() {
                 <button
                   key={c.id}
                   class={`chip-picker-item ${f.categories.includes(c.id) ? 'selected' : ''}`}
-                  style={{ '--chip-color': `var(--fam-${c.colorFamily})` }}
+                  style={{ '--chip-color': c.color }}
                   onClick={() => updateFilters({ categories: toggleInArray(f.categories, c.id) })}
                 >
                   {c.emoji} {c.label}

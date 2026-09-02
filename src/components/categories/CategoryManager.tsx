@@ -1,5 +1,4 @@
 import { useState } from 'preact/hooks';
-import type { ColorFamily } from '../../types';
 import {
   categories as categoriesSignal,
   addCategory,
@@ -7,36 +6,33 @@ import {
   deleteCategory,
 } from '../../stores/categoriesStore';
 
-const FAMILIES: ColorFamily[] = [1, 2, 3, 4, 5, 6];
+const DEFAULT_NEW_COLOR = '#2a78d6';
 
-function FamilyPicker(props: { value: ColorFamily; onChange: (f: ColorFamily) => void }) {
+/** Colore libero: input nativo <input type="color">, l'utente sceglie esattamente il colore che vuole. */
+function ColorPicker(props: { value: string; onChange: (color: string) => void }) {
   return (
-    <div class="family-picker">
-      {FAMILIES.map((f) => (
-        <button
-          key={f}
-          type="button"
-          class={`family-swatch ${props.value === f ? 'selected' : ''}`}
-          style={{ background: `var(--fam-${f})` }}
-          onClick={() => props.onChange(f)}
-          aria-label={`Famiglia colore ${f}`}
-        />
-      ))}
-    </div>
+    <input
+      type="color"
+      class="color-swatch-input"
+      value={props.value}
+      onInput={(e) => props.onChange((e.target as HTMLInputElement).value)}
+      aria-label="Colore categoria"
+    />
   );
 }
 
 export function CategoryManager() {
   const [newLabel, setNewLabel] = useState('');
   const [newEmoji, setNewEmoji] = useState('🏷️');
-  const [newFamily, setNewFamily] = useState<ColorFamily>(1);
+  const [newColor, setNewColor] = useState(DEFAULT_NEW_COLOR);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    await addCategory(newLabel.trim(), newEmoji.trim() || '🏷️', newFamily);
+    await addCategory(newLabel.trim(), newEmoji.trim() || '🏷️', newColor);
     setNewLabel('');
     setNewEmoji('🏷️');
+    setNewColor(DEFAULT_NEW_COLOR);
   }
 
   return (
@@ -56,7 +52,7 @@ export function CategoryManager() {
                   value={c.label}
                   onInput={(e) => updateCategory(c.id, { label: (e.target as HTMLInputElement).value })}
                 />
-                <FamilyPicker value={c.colorFamily} onChange={(f) => updateCategory(c.id, { colorFamily: f })} />
+                <ColorPicker value={c.color} onChange={(color) => updateCategory(c.id, { color })} />
                 <button class="btn btn-secondary btn-sm" onClick={() => setEditingId(null)}>
                   Fatto
                 </button>
@@ -64,7 +60,7 @@ export function CategoryManager() {
             ) : (
               <>
                 <span class="category-manager-label">
-                  <span class="map-legend-dot" style={{ background: `var(--fam-${c.colorFamily})` }} /> {c.emoji} {c.label}
+                  <span class="map-legend-dot" style={{ background: c.color }} /> {c.emoji} {c.label}
                 </span>
                 <button class="btn btn-secondary btn-sm" onClick={() => setEditingId(c.id)}>
                   Modifica
@@ -90,8 +86,8 @@ export function CategoryManager() {
             value={newLabel}
             onInput={(e) => setNewLabel((e.target as HTMLInputElement).value)}
           />
+          <ColorPicker value={newColor} onChange={setNewColor} />
         </div>
-        <FamilyPicker value={newFamily} onChange={setNewFamily} />
         <button class="btn btn-primary btn-block" disabled={!newLabel.trim()} onClick={handleAdd}>
           Aggiungi categoria
         </button>

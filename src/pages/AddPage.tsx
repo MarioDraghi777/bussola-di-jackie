@@ -4,6 +4,7 @@ import { getLastCity, setLastCity } from '../utils/preferences';
 import { searchPlace } from '../services/geocoding';
 import { findPossibleDuplicates, type DuplicateMatch } from '../services/duplicates';
 import { addPlace, places } from '../stores/placesStore';
+import { categories as categoriesSignal } from '../stores/categoriesStore';
 import { navigate } from '../router';
 import type { GeocodeCandidate, GeocodeSource, Place } from '../types';
 import { GeocodeCandidatesModal } from '../components/places/GeocodeCandidatesModal';
@@ -30,6 +31,7 @@ type Stage =
 export function AddPage() {
   const [name, setName] = useState('');
   const [city, setCity] = useState(getLastCity());
+  const [categoryId, setCategoryId] = useState('');
   const [stage, setStage] = useState<Stage>({ kind: 'form' });
   const [nameDuplicates, setNameDuplicates] = useState<DuplicateMatch[]>([]);
 
@@ -44,7 +46,7 @@ export function AddPage() {
       id: newId(),
       name: name.trim(),
       city: city.trim() || 'Roma',
-      categories: [],
+      categories: categoryId ? [categoryId] : [],
       tags: [],
       status: 'da_provare',
       lat: resolved.lat,
@@ -104,6 +106,24 @@ export function AddPage() {
       <div class="field">
         <label for="add-city">Città</label>
         <input id="add-city" class="input" value={city} onInput={(e) => setCity((e.target as HTMLInputElement).value)} />
+      </div>
+
+      <div class="field">
+        <label for="add-category">Categoria</label>
+        <select
+          id="add-category"
+          class="select"
+          value={categoryId}
+          onChange={(e) => setCategoryId((e.target as HTMLSelectElement).value)}
+        >
+          <option value="">Nessuna (la scegli dopo)</option>
+          {categoriesSignal.value.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.emoji} {c.label}
+            </option>
+          ))}
+        </select>
+        <p class="hint-text">Determina subito il colore del pin sulla mappa. Puoi aggiungerne altre dopo, dalla scheda del posto.</p>
       </div>
 
       <button class="btn btn-primary btn-block" disabled={!name.trim() || stage.kind === 'searching'} onClick={handleSave}>

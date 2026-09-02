@@ -10,7 +10,7 @@ export function CategoryPicker(props: { selected: string[]; onToggle: (id: strin
             key={c.id}
             type="button"
             class={`chip-picker-item ${isSelected ? 'selected' : ''}`}
-            style={{ '--chip-color': `var(--fam-${c.colorFamily})` }}
+            style={{ '--chip-color': c.color }}
             onClick={() => props.onToggle(c.id)}
           >
             {c.emoji} {c.label}

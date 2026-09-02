@@ -3,6 +3,7 @@ import { places, reloadPlaces } from '../stores/placesStore';
 import { reloadCategories } from '../stores/categoriesStore';
 import { exportJson, exportCsv, downloadTextFile, importJson, type ImportJsonResult } from '../services/exportImport';
 import { CategoryManager } from '../components/categories/CategoryManager';
+import { ShareInvite } from '../components/settings/ShareInvite';
 import { navigate } from '../router';
 
 function dateStamp(): string {
@@ -43,6 +44,14 @@ export function SettingsPage() {
   return (
     <div class="page">
       <h1 class="page-title">Impostazioni</h1>
+
+      <section class="settings-section">
+        <h2 class="settings-heading">Invita amici</h2>
+        <p class="hint-text">
+          Condividi il link dell'app: chi lo apre ha la propria lista personale, separata dalla tua — non è una lista condivisa.
+        </p>
+        <ShareInvite />
+      </section>
 
       <section class="settings-section">
         <h2 class="settings-heading">Import in blocco</h2>

@@ -586,20 +586,30 @@ a {
   text-align: center;
 }
 
-.family-picker {
-  display: flex;
-  gap: 6px;
-}
-
-.family-swatch {
-  width: 26px;
-  height: 26px;
+.color-swatch-input {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border);
   border-radius: 50%;
-  border: 2px solid transparent;
+  background: none;
+  cursor: pointer;
 }
 
-.family-swatch.selected {
-  border-color: var(--text-primary);
+/* i browser disegnano l'anteprima colore come un rettangolo interno: la arrotondiamo insieme all'input */
+.color-swatch-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-swatch-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.color-swatch-input::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
 }
 
 .category-add-form {
