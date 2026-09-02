@@ -1,0 +1,89 @@
+import { useRef, useState } from 'preact/hooks';
+import type { Map as MaplibreMapInstance } from 'maplibre-gl';
+import { filteredPlaces } from '../stores/filtersStore';
+import { places } from '../stores/placesStore';
+import { categories as categoriesSignal, categoryById } from '../stores/categoriesStore';
+import type { MapMarkerSpec } from '../components/map/MapLibreMap';
+import { LazyMap } from '../components/map/LazyMap';
+import { FilterBar } from '../components/filters/FilterBar';
+import { ROME_CENTER } from '../services/mapConfig';
+import { navigate } from '../router';
+
+const NO_CATEGORY_COLOR = 'var(--text-muted)';
+
+export function MapPage() {
+  const [showFilters, setShowFilters] = useState(false);
+  const mapRef = useRef<MaplibreMapInstance | null>(null);
+  const hasFitted = useRef(false);
+
+  const markers: MapMarkerSpec[] = filteredPlaces.value.map(({ place }) => {
+    const cat = place.categories.length > 0 ? categoryById(place.categories[0]) : undefined;
+    return {
+      id: place.id,
+      lng: place.lng,
+      lat: place.lat,
+      color: cat ? `var(--fam-${cat.colorFamily})` : NO_CATEGORY_COLOR,
+      emoji: cat?.emoji ?? '📍',
+      onClick: () => navigate('posto', place.id),
+    };
+  });
+
+  function handleMapReady(map: MaplibreMapInstance) {
+    mapRef.current = map;
+    fitToAllPlaces(map);
+  }
+
+  function fitToAllPlaces(map: MaplibreMapInstance) {
+    if (hasFitted.current || places.value.length === 0) return;
+    hasFitted.current = true;
+    // Bounding box calcolato a mano: evita di importare la classe LngLatBounds
+    // qui, così questo file non tira dentro maplibre-gl nel bundle principale
+    // (lo carica solo LazyMap, al bisogno).
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    for (const p of places.value) {
+      minLng = Math.min(minLng, p.lng);
+      maxLng = Math.max(maxLng, p.lng);
+      minLat = Math.min(minLat, p.lat);
+      maxLat = Math.max(maxLat, p.lat);
+    }
+    map.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding: 48, maxZoom: 15, duration: 0 },
+    );
+  }
+
+  return (
+    <div class="map-page">
+      <div class="map-page-canvas">
+        <LazyMap center={ROME_CENTER} zoom={12} markers={markers} onMapReady={handleMapReady} />
+      </div>
+
+      <button class="map-filter-toggle" onClick={() => setShowFilters((v) => !v)}>
+        Filtri {markers.length}/{places.value.length}
+      </button>
+
+      {showFilters && (
+        <div class="map-filter-panel">
+          <FilterBar />
+        </div>
+      )}
+
+      <div class="map-legend">
+        {categoriesSignal.value
+          .filter((c) => places.value.some((p) => p.categories[0] === c.id))
+          .map((c) => (
+            <span key={c.id} class="map-legend-item">
+              <span class="map-legend-dot" style={{ background: `var(--fam-${c.colorFamily})` }} />
+              {c.emoji} {c.label}
+            </span>
+          ))}
+      </div>
+    </div>
+  );
+}
