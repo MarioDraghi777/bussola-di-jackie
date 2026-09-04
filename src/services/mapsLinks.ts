@@ -98,6 +98,21 @@ export function shareTextToQuery(text: string): string {
   return lines.slice(0, 2).join(', ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Solo la parte di indirizzo del testo condiviso (cioè senza la prima riga, che
+ * è il nome del posto). Gli indirizzi si geocodificano molto meglio delle
+ * combinazioni "nome + indirizzo", quindi vale la pena provarli a parte.
+ */
+export function shareTextAddressOnly(text: string): string {
+  const withoutUrl = text.replace(/https?:\/\/\S+/gi, ' ');
+  const lines = withoutUrl
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(vieni a vedere|dai un'occhiata|check out|guarda)/i.test(line));
+  return lines.slice(1, 3).join(', ').replace(/\s+/g, ' ').trim();
+}
+
 /** Nome del posto dall'URL esteso (…/maps/place/Bar+Della+Cometa/…), se presente. */
 export function placeNameFromMapsUrl(url: string): string | undefined {
   const match = url.match(/\/maps\/place\/([^/@?]+)/);

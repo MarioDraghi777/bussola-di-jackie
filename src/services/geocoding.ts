@@ -6,6 +6,7 @@ import {
   isShortenedMapsLink,
   parseGoogleMapsLink,
   placeNameFromMapsUrl,
+  shareTextAddressOnly,
   shareTextToQuery,
 } from './mapsLinks';
 
@@ -152,6 +153,20 @@ function sortCandidates(candidates: GeocodeCandidate[], near?: LatLng | null): G
     );
   }
   return [...candidates].sort((a, b) => b.importance - a.importance);
+}
+
+/**
+ * Mette davanti i candidati che nominano la città di riferimento: senza questo,
+ * un omonimo più famoso in un'altra città vince solo perché ha "importanza"
+ * più alta su Nominatim.
+ */
+function preferCityMatches(candidates: GeocodeCandidate[], city: string): GeocodeCandidate[] {
+  if (!city) return candidates;
+  const needle = normalizeKey(city);
+  const inCity = candidates.filter((c) => normalizeKey(c.displayName).includes(needle));
+  if (inCity.length === 0) return candidates;
+  const others = candidates.filter((c) => !normalizeKey(c.displayName).includes(needle));
+  return [...inCity, ...others];
 }
 
 function searchCacheKey(name: string, city: string, near?: LatLng | null): string {
@@ -317,10 +332,22 @@ export async function resolveMapsShare(input: string, city = '', near?: LatLng |
 
   const query = shareTextToQuery(raw);
   if (query) {
-    // il testo condiviso da Maps di solito contiene già l'indirizzo completo:
-    // si prova prima così com'è, e solo se non basta si aggiunge la città dell'app
-    let candidates = await searchPlace(query, '', near);
-    if (candidates.length === 0 && city) candidates = await searchPlace(query, city, near);
+    // Il testo condiviso contiene di solito nome + indirizzo. Si provano più
+    // formulazioni e si uniscono i risultati, invece di fermarsi alla prima che
+    // risponde: "Pantheon, Piazza della Rotonda, Roma" da solo, per Nominatim,
+    // pesca il Panthéon di Parigi, che è più "importante".
+    const queries = [query];
+    const addressOnly = shareTextAddressOnly(raw);
+    if (addressOnly && addressOnly !== query) queries.push(addressOnly);
+    if (city && !normalizeKey(query).includes(normalizeKey(city))) queries.push(`${query}, ${city}`);
+
+    const collected: GeocodeCandidate[] = [];
+    for (const q of queries) {
+      collected.push(...(await searchPlace(q, '', near)));
+      if (collected.length >= 5) break; // abbastanza alternative, inutile insistere su Nominatim
+    }
+
+    const candidates = preferCityMatches(sortCandidates(dedupe(collected), near), city);
     if (candidates.length > 0) return { kind: 'candidates', candidates, via: 'testo' };
   }
 

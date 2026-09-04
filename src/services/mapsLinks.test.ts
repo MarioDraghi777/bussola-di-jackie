@@ -4,6 +4,7 @@ import {
   isShortenedMapsLink,
   parseGoogleMapsLink,
   placeNameFromMapsUrl,
+  shareTextAddressOnly,
   shareTextToQuery,
 } from './mapsLinks';
 
@@ -71,6 +72,17 @@ describe('shareTextToQuery', () => {
 
   it('ritorna stringa vuota se c’era solo il link', () => {
     expect(shareTextToQuery('https://maps.app.goo.gl/AbCdEfGh123')).toBe('');
+  });
+});
+
+describe('shareTextAddressOnly', () => {
+  it('tiene solo la parte di indirizzo, senza il nome del posto', () => {
+    const shared = 'Pantheon\nPiazza della Rotonda, Roma\nhttps://maps.app.goo.gl/x';
+    expect(shareTextAddressOnly(shared)).toBe('Piazza della Rotonda, Roma');
+  });
+
+  it('ritorna stringa vuota se c’era solo il nome', () => {
+    expect(shareTextAddressOnly('Pantheon\nhttps://maps.app.goo.gl/x')).toBe('');
   });
 });
 
