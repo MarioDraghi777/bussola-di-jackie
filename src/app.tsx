@@ -10,13 +10,20 @@ import { SettingsPage } from './pages/SettingsPage';
 import { PlacePage } from './pages/PlacePage';
 import { initCategories } from './stores/categoriesStore';
 import { reloadPlaces } from './stores/placesStore';
+import { captureShareFromUrl, pendingShare } from './stores/shareStore';
+import { navigate } from './router';
 
 export function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     // Avvio: seed categorie al primo utilizzo + primo caricamento dei posti dal DB locale.
-    Promise.all([initCategories(), reloadPlaces()]).then(() => setReady(true));
+    captureShareFromUrl();
+    Promise.all([initCategories(), reloadPlaces()]).then(() => {
+      // se l'app è stata aperta condividendo un posto da un'altra app, si va dritti all'aggiunta
+      if (pendingShare.value) navigate('aggiungi');
+      setReady(true);
+    });
   }, []);
 
   if (!ready) {

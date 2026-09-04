@@ -37,7 +37,9 @@ Il colore di una categoria si assegna già al momento dell'aggiunta rapida (menu
 
 ### Vicino a me
 
-Tab **Vicino**: attiva la geolocalizzazione e mostra i posti ordinati per distanza reale (in metri/km), con un filtro a raggio regolabile. La posizione si aggiorna solo su richiesta (pulsante "Aggiorna posizione"), non in continuo, per non consumare batteria.
+Tab **Vicino**: attiva la geolocalizzazione e mostra i posti ordinati per distanza reale (in metri/km), con un filtro a raggio regolabile. Finché la schermata è aperta la posizione viene seguita in continuo (`watchPosition`): distanze e ordinamento si aggiornano da soli mentre cammini, e in cima vedi quanto è fresco il fix e con che precisione. Quando esci dalla schermata il tracciamento si ferma, per non consumare batteria.
+
+Se la posizione è nota, viene usata anche come aiuto nella ricerca di nuovi posti (vedi sotto).
 
 ### Ricerca e filtri
 
@@ -80,12 +82,14 @@ Nessun tocco al codice: **Impostazioni → Categorie → Aggiungi categoria**. S
 
 ## Cosa fare se il geocoding non trova un posto
 
-Non è mai un blocco: il posto puoi comunque salvarlo, con una delle due alternative che l'app propone da sola quando la ricerca fallisce (o quando vuoi correggere una posizione sbagliata, dal pulsante "Modifica pin" nella scheda):
+Prima di arrendersi, la ricerca per nome prova da sola più strategie, in quest'ordine: **vicino a dove sei** (se la posizione è attiva), poi "nome + città", poi una ricerca strutturata per punto di interesse, poi il nome ristretto al riquadro della città. Quando i risultati sono più d'uno — il caso degli **omonimi** — te li mostra tutti e scegli tu; se sei sul posto, il più vicino a te viene proposto per primo. La tua posizione influenza l'ordine solo quando c'entra davvero: se sei a Roma e cerchi un posto a Milano, vince la rilevanza, non la vicinanza.
 
-1. **Posiziona il pin a mano**: si apre una mappa con un segnaposto fisso al centro, muovi la mappa sotto di esso finché non è nel punto giusto, poi conferma.
-2. **Incolla un link Google Maps**: copia il link di condivisione del posto da Google Maps (quello "esteso", tipo `https://www.google.com/maps/place/...` o con `@lat,lng` nell'URL) e incollalo — l'app estrae le coordinate da sola.
+Se comunque non trova nulla, il posto si salva lo stesso con una delle alternative che l'app propone da sola (o dal pulsante "Modifica pin" nella scheda, per correggere una posizione sbagliata):
 
-L'unico caso che l'app non può risolvere da sola è un link **abbreviato** (`maps.app.goo.gl/...` o `goo.gl/maps/...`): per come funzionano questi link, espanderli richiederebbe un server proprio, che l'app volutamente non ha. Aprilo nel browser del telefono, aspetta che l'indirizzo si espanda nella barra in alto, e incolla quello.
+1. **Incolla da Google Maps**: apri il posto in Google Maps, tocca **Condividi** e incolla qui quello che copi. Funzionano sia i link estesi (`https://www.google.com/maps/place/...`) sia i **link brevi** `maps.app.goo.gl`, che l'app prova a espandere; se l'espansione non riesce (è l'unico pezzo che dipende da un servizio esterno gratuito), ricade sul nome e indirizzo contenuti nel messaggio condiviso e li geocodifica, mostrandoti i risultati da confermare.
+2. **Posiziona il pin a mano**: si apre una mappa con un segnaposto fisso al centro, muovi la mappa sotto di esso finché non è nel punto giusto, poi conferma.
+
+Su Android, con la PWA installata, puoi anche saltare il copia-incolla: da Google Maps tocca **Condividi → La bussola di Jackie** e l'app si apre già sulla schermata di aggiunta con nome e posizione pronti.
 
 In nessun caso un posto viene salvato con coordinate inventate: se non geocodifichi né posizioni il pin, semplicemente non si salva ancora (per l'aggiunta rapida) o la riga resta "da risolvere" (nell'import in blocco).
 
@@ -134,6 +138,6 @@ npm run deploy   # build + pubblica dist/ sul branch gh-pages
 
 ## Limiti noti
 
-- Il geocoding automatico funziona bene per luoghi con un nome distintivo; per locali piccoli con nomi generici ("Vetro", "Trecca"…) Nominatim spesso non trova nulla o trova più candidati ambigui — è normale, ed è proprio per questo che esiste la schermata di revisione e il posizionamento manuale.
-- I link Google Maps abbreviati non sono espandibili senza un server (vedi sopra).
+- Il geocoding automatico trova ciò che esiste in OpenStreetMap: un locale piccolo che nessuno ha ancora mappato non è trovabile da nessun geocoder, per quanto si affini la ricerca. È normale, ed è proprio per questo che esistono la revisione dell'import, l'incolla-da-Google-Maps e il pin manuale.
+- L'espansione dei link brevi `maps.app.goo.gl` passa da un servizio pubblico gratuito di terze parti (unshorten.me), perché il browser non può seguire quel redirect da solo e l'app non ha un server proprio: è un servizio a cortesia, con limiti di frequenza, e se non risponde l'app ricade automaticamente sul testo condiviso o sul pin manuale.
 - La sincronizzazione fra dispositivi non è automatica: il meccanismo "gratis, facoltativo, disattivato di default" richiesto è l'export/import JSON manuale — niente account né infrastruttura da mantenere.

@@ -1,5 +1,13 @@
 import { db } from '../db/schema';
 import type { GeocodeCandidate } from '../types';
+import { haversineDistanceMeters } from './distance';
+import {
+  extractFirstUrl,
+  isShortenedMapsLink,
+  parseGoogleMapsLink,
+  placeNameFromMapsUrl,
+  shareTextToQuery,
+} from './mapsLinks';
 
 /**
  * Client per Nominatim (geocoder di OpenStreetMap), l'unico gratuito senza API key.
@@ -12,6 +20,13 @@ import type { GeocodeCandidate } from '../types';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const MIN_INTERVAL_MS = 1100; // poco sopra 1 richiesta/secondo, con margine
+const RESULT_LIMIT = 8;
+const NEAR_RADIUS_KM = 8;
+
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
 
 let queue: Promise<unknown> = Promise.resolve();
 let lastDispatchAt = 0;
@@ -32,15 +47,65 @@ function throttled<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function normalizeQuery(name: string, city: string): string {
-  return `${name}|${city}`.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
 interface NominatimResult {
   lat: string;
   lon: string;
   display_name: string;
   importance?: number;
+  boundingbox?: [string, string, string, string]; // latMin, latMax, lonMin, lonMax
+}
+
+function toCandidate(r: NominatimResult): GeocodeCandidate {
+  const bb = r.boundingbox;
+  return {
+    lat: parseFloat(r.lat),
+    lng: parseFloat(r.lon),
+    displayName: r.display_name,
+    importance: r.importance ?? 0,
+    bbox: bb ? [parseFloat(bb[2]), parseFloat(bb[0]), parseFloat(bb[3]), parseFloat(bb[1])] : undefined,
+  };
+}
+
+async function nominatimSearch(params: Record<string, string>): Promise<GeocodeCandidate[]> {
+  const query = new URLSearchParams({
+    format: 'jsonv2',
+    addressdetails: '0',
+    limit: String(RESULT_LIMIT),
+    ...params,
+  });
+  return throttled(async () => {
+    const res = await fetch(`${NOMINATIM_BASE}/search?${query}`, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`Nominatim ha risposto ${res.status}`);
+    const data = (await res.json()) as NominatimResult[];
+    return data.map(toCandidate);
+  }).catch(() => [] as GeocodeCandidate[]); // fallimento di rete: nessun candidato, mai un posto "inventato"
+}
+
+interface GeoBox {
+  lonMin: number;
+  latMin: number;
+  lonMax: number;
+  latMax: number;
+}
+
+function boxAround(center: LatLng, km: number): GeoBox {
+  const dLat = km / 111;
+  // alle nostre latitudini un grado di longitudine è più corto: si scala col coseno
+  const dLon = km / (111 * Math.max(0.2, Math.cos((center.lat * Math.PI) / 180)));
+  return {
+    lonMin: center.lng - dLon,
+    latMin: center.lat - dLat,
+    lonMax: center.lng + dLon,
+    latMax: center.lat + dLat,
+  };
+}
+
+function boxParam(box: GeoBox): string {
+  return `${box.lonMin},${box.latMax},${box.lonMax},${box.latMin}`;
+}
+
+function normalizeKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 async function fetchFromCache(key: string): Promise<GeocodeCandidate[] | undefined> {
@@ -52,32 +117,103 @@ async function saveToCache(key: string, results: GeocodeCandidate[]): Promise<vo
   await db.geocodeCache.put({ query: key, results, timestamp: Date.now() });
 }
 
+/** Riquadro della città, cercato una volta sola e poi tenuto in cache: serve a restringere le ricerche per nome. */
+async function cityBox(city: string): Promise<GeoBox | null> {
+  const key = `citybox|${normalizeKey(city)}`;
+  const cached = await fetchFromCache(key);
+  const cachedBox = cached?.[0]?.bbox;
+  if (cached) {
+    return cachedBox ? { lonMin: cachedBox[0], latMin: cachedBox[1], lonMax: cachedBox[2], latMax: cachedBox[3] } : null;
+  }
+
+  const results = await nominatimSearch({ q: city, limit: '1' });
+  await saveToCache(key, results.slice(0, 1));
+  const bbox = results[0]?.bbox;
+  return bbox ? { lonMin: bbox[0], latMin: bbox[1], lonMax: bbox[2], latMax: bbox[3] } : null;
+}
+
+function dedupe(candidates: GeocodeCandidate[]): GeocodeCandidate[] {
+  const seen = new Set<string>();
+  const unique: GeocodeCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = `${candidate.lat.toFixed(5)},${candidate.lng.toFixed(5)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
+}
+
+function sortCandidates(candidates: GeocodeCandidate[], near?: LatLng | null): GeocodeCandidate[] {
+  if (near) {
+    // se so dove sono, il candidato più vicino è quasi sempre quello giusto
+    return [...candidates].sort(
+      (a, b) => haversineDistanceMeters(near, a) - haversineDistanceMeters(near, b),
+    );
+  }
+  return [...candidates].sort((a, b) => b.importance - a.importance);
+}
+
+function searchCacheKey(name: string, city: string, near?: LatLng | null): string {
+  const base = `${normalizeKey(name)}|${normalizeKey(city)}`;
+  // la posizione cambia i risultati: la chiave include una cella grossolana (~1 km)
+  return near ? `${base}|@${near.lat.toFixed(2)},${near.lng.toFixed(2)}` : base;
+}
+
 /**
- * Cerca un posto per nome (+ città opzionale). Ritorna tutti i candidati trovati:
- * se sono più di uno è compito della UI farli scegliere all'utente.
- * Non lancia mai eccezioni per "nessun risultato": ritorna semplicemente [].
+ * Cerca un posto per nome, provando strategie sempre più larghe finché non trova
+ * qualcosa. In ordine:
+ *  1. vicino a dove sei ora (se la posizione è nota) + "nome, città": i due casi
+ *     più probabili quando stai aggiungendo un posto mentre giri per la città;
+ *  2. ricerca strutturata per punto di interesse (amenity) dentro la città;
+ *  3. nome secco ristretto al riquadro della città.
+ * Ritorna tutti i candidati trovati: se sono più di uno la UI li fa scegliere,
+ * ed è così che si gestiscono gli omonimi. Non lancia mai eccezioni: se non
+ * trova nulla ritorna [].
  */
-export async function searchPlace(name: string, city = ''): Promise<GeocodeCandidate[]> {
-  const key = normalizeQuery(name, city);
+export async function searchPlace(name: string, city = '', near?: LatLng | null): Promise<GeocodeCandidate[]> {
+  const trimmed = name.trim();
+  if (!trimmed) return [];
+
+  const key = searchCacheKey(trimmed, city, near);
   const cached = await fetchFromCache(key);
   if (cached) return cached;
 
-  const query = city ? `${name}, ${city}` : name;
-  const url = `${NOMINATIM_BASE}/search?format=jsonv2&addressdetails=0&limit=5&q=${encodeURIComponent(query)}`;
+  // ogni "fase" può contenere più tentativi, i cui risultati vengono uniti
+  const phases: Array<Array<() => Promise<GeocodeCandidate[]>>> = [];
 
-  const results = await throttled(async () => {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`Nominatim ha risposto ${res.status}`);
-    const data = (await res.json()) as NominatimResult[];
-    return data.map(
-      (r): GeocodeCandidate => ({
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
-        displayName: r.display_name,
-        importance: r.importance ?? 0,
-      }),
+  const firstPhase: Array<() => Promise<GeocodeCandidate[]>> = [];
+  if (near) {
+    firstPhase.push(() =>
+      nominatimSearch({ q: trimmed, viewbox: boxParam(boxAround(near, NEAR_RADIUS_KM)), bounded: '1' }),
     );
-  }).catch(() => [] as GeocodeCandidate[]); // fallimento di rete: nessun candidato, mai un posto "inventato"
+  }
+  firstPhase.push(() => nominatimSearch({ q: city ? `${trimmed}, ${city}` : trimmed }));
+  phases.push(firstPhase);
+
+  if (city) {
+    phases.push([() => nominatimSearch({ amenity: trimmed, city })]);
+    phases.push([
+      async () => {
+        const box = await cityBox(city);
+        return box ? nominatimSearch({ q: trimmed, viewbox: boxParam(box), bounded: '1' }) : [];
+      },
+    ]);
+  }
+
+  let results: GeocodeCandidate[] = [];
+  for (const phase of phases) {
+    const merged: GeocodeCandidate[] = [];
+    for (const attempt of phase) merged.push(...(await attempt()));
+    const unique = dedupe(merged);
+    // La posizione attuale ordina i risultati solo se c'entra davvero qualcosa:
+    // se sto a Roma e cerco un posto di Milano, il più vicino a me non è il più
+    // probabile, e in quel caso conta la rilevanza.
+    const nearIsRelevant =
+      near != null && unique.some((c) => haversineDistanceMeters(near, c) < 30000);
+    results = sortCandidates(unique, nearIsRelevant ? near : null);
+    if (results.length > 0) break;
+  }
 
   await saveToCache(key, results);
   return results;
@@ -103,45 +239,92 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   return result;
 }
 
-export interface ParsedMapsLink {
-  lat: number;
-  lng: number;
+/**
+ * Espansione di un link corto (quello che dà "Condividi" dentro l'app Google Maps).
+ * Il redirect non è leggibile dal browser per via del CORS, quindi ci si appoggia a
+ * un servizio pubblico gratuito che restituisce l'URL finale. È volutamente
+ * l'ultima spiaggia: se non risponde, il flusso prosegue con il testo condiviso e
+ * poi col pin manuale, senza mai bloccare l'inserimento.
+ */
+const UNSHORTEN_ENDPOINTS = [
+  (url: string) => `https://unshorten.me/s/${encodeURIComponent(url)}`,
+  (url: string) => `https://unshorten.me/json/${encodeURIComponent(url)}`,
+];
+
+async function fetchTextWithTimeout(url: string, timeoutMs = 9000): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-/**
- * Estrae lat/lng da un link Google Maps "esteso" (non abbreviato).
- * I link abbreviati (maps.app.goo.gl, goo.gl/maps) non sono risolvibili lato
- * client per via del redirect opaco CORS: in quel caso ritorna null e la UI
- * spiega all'utente come espanderlo prima di incollarlo.
- */
-export function parseGoogleMapsLink(rawUrl: string): ParsedMapsLink | null {
-  const url = rawUrl.trim();
+export async function expandShortMapsLink(shortUrl: string): Promise<string | null> {
+  for (const buildUrl of UNSHORTEN_ENDPOINTS) {
+    const body = await fetchTextWithTimeout(buildUrl(shortUrl));
+    if (!body) continue;
 
-  // coordinate del marker specifico, più precise del centro mappa
-  const markerMatch = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
-  if (markerMatch) {
-    return { lat: parseFloat(markerMatch[1]), lng: parseFloat(markerMatch[2]) };
+    let resolved: string | undefined;
+    const trimmed = body.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        resolved = (JSON.parse(trimmed) as { resolved_url?: string }).resolved_url;
+      } catch {
+        resolved = undefined;
+      }
+    } else {
+      resolved = trimmed;
+    }
+
+    if (resolved && /^https?:\/\//i.test(resolved)) return resolved;
   }
-
-  const queryMatch = url.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (queryMatch) {
-    return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
-  }
-
-  const llMatch = url.match(/[?&]ll=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (llMatch) {
-    return { lat: parseFloat(llMatch[1]), lng: parseFloat(llMatch[2]) };
-  }
-
-  // centro del viewport: fallback meno preciso, usato solo se non c'è altro
-  const viewportMatch = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (viewportMatch) {
-    return { lat: parseFloat(viewportMatch[1]), lng: parseFloat(viewportMatch[2]) };
-  }
-
   return null;
 }
 
-export function isShortenedMapsLink(rawUrl: string): boolean {
-  return /goo\.gl\/maps|maps\.app\.goo\.gl/i.test(rawUrl);
+export type MapsShareResult =
+  | { kind: 'coords'; lat: number; lng: number; label?: string; via: 'link' | 'link_espanso' }
+  | { kind: 'candidates'; candidates: GeocodeCandidate[]; via: 'testo' }
+  | { kind: 'failed' };
+
+/**
+ * Prende quello che l'utente ha incollato (o condiviso dall'app Google Maps) e
+ * prova, in ordine: coordinate dentro un link esteso, espansione del link corto,
+ * geocodifica del nome/indirizzo presenti nel testo condiviso.
+ */
+export async function resolveMapsShare(input: string, city = '', near?: LatLng | null): Promise<MapsShareResult> {
+  const raw = input.trim();
+  if (!raw) return { kind: 'failed' };
+
+  const url = extractFirstUrl(raw);
+  if (url) {
+    const direct = parseGoogleMapsLink(url);
+    if (direct) return { kind: 'coords', ...direct, label: placeNameFromMapsUrl(url), via: 'link' };
+
+    if (isShortenedMapsLink(url)) {
+      const expanded = await expandShortMapsLink(url);
+      const coords = expanded ? parseGoogleMapsLink(expanded) : null;
+      if (coords && expanded) {
+        return { kind: 'coords', ...coords, label: placeNameFromMapsUrl(expanded), via: 'link_espanso' };
+      }
+    }
+  }
+
+  const query = shareTextToQuery(raw);
+  if (query) {
+    // il testo condiviso da Maps di solito contiene già l'indirizzo completo:
+    // si prova prima così com'è, e solo se non basta si aggiunge la città dell'app
+    let candidates = await searchPlace(query, '', near);
+    if (candidates.length === 0 && city) candidates = await searchPlace(query, city, near);
+    if (candidates.length > 0) return { kind: 'candidates', candidates, via: 'testo' };
+  }
+
+  return { kind: 'failed' };
 }
+
+export { parseGoogleMapsLink, isShortenedMapsLink } from './mapsLinks';

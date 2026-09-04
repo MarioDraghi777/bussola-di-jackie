@@ -1,32 +1,55 @@
-import { useState } from 'preact/hooks';
-import { geoStatus, position, requestLocation } from '../stores/geoStore';
+import { useEffect, useState } from 'preact/hooks';
+import {
+  formatPositionAge,
+  geoStatus,
+  position,
+  positionAgeSeconds,
+  requestLocation,
+  startWatching,
+} from '../stores/geoStore';
 import { places } from '../stores/placesStore';
 import { filters, updateFilters } from '../stores/filtersStore';
 import { computeFilteredPlaces } from '../services/filtering';
 import { PlaceCard } from '../components/places/PlaceCard';
 import { FilterBar } from '../components/filters/FilterBar';
+import { navigate } from '../router';
 
 export function NearbyPage() {
   const [showFilters, setShowFilters] = useState(false);
-  const status = geoStatus.value;
+  // serve solo a far ridisegnare l'etichetta "aggiornata X fa" mentre il tempo passa
+  const [, setTick] = useState(0);
 
-  const results =
-    status === 'ready' && position.value
-      ? computeFilteredPlaces(places.value, { ...filters.value, sortBy: 'distanza' }, position.value)
-      : [];
+  useEffect(() => {
+    const stopWatching = startWatching();
+    const interval = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => {
+      stopWatching();
+      clearInterval(interval);
+    };
+  }, []);
+
+  const status = geoStatus.value;
+  const current = position.value;
+  const ageSeconds = positionAgeSeconds();
+
+  const results = current
+    ? computeFilteredPlaces(places.value, { ...filters.value, sortBy: 'distanza' }, current)
+    : [];
 
   return (
     <div class="page">
       <h1 class="page-title">Vicino a me</h1>
 
-      {status !== 'ready' && (
+      {!current && (
         <div class="nearby-prompt">
           <p class="hint-text">
             {status === 'denied'
               ? 'Hai negato il permesso di geolocalizzazione: abilitalo nelle impostazioni del browser per usare questa funzione.'
               : status === 'unsupported'
                 ? 'Questo dispositivo/browser non supporta la geolocalizzazione.'
-                : 'Attiva la posizione per vedere i posti ordinati per distanza reale.'}
+                : status === 'locating'
+                  ? 'Sto cercando il segnale…'
+                  : 'Attiva la posizione per vedere i posti ordinati per distanza reale.'}
           </p>
           <button class="btn btn-primary btn-block" onClick={requestLocation} disabled={status === 'locating'}>
             {status === 'locating' ? 'Localizzazione…' : '📍 Attiva posizione'}
@@ -34,12 +57,20 @@ export function NearbyPage() {
         </div>
       )}
 
-      {status === 'ready' && (
+      {current && (
         <>
-          <div class="nearby-controls">
+          <div class="nearby-status">
+            <span class={`gps-dot ${status === 'locating' ? 'searching' : ''}`} aria-hidden="true" />
+            <span>
+              Posizione aggiornata {formatPositionAge(ageSeconds ?? 0)}
+              {current.accuracy > 0 ? ` · precisione ±${Math.round(current.accuracy)} m` : ''}
+            </span>
             <button class="btn btn-secondary btn-sm" onClick={requestLocation}>
-              🔄 Aggiorna posizione
+              🔄
             </button>
+          </div>
+
+          <div class="nearby-controls">
             <label class="radius-inline">
               Raggio
               <input
@@ -58,6 +89,10 @@ export function NearbyPage() {
           </div>
 
           {showFilters && <FilterBar />}
+
+          <button class="btn btn-secondary btn-block" onClick={() => navigate('aggiungi')}>
+            ➕ Aggiungi un posto qui vicino
+          </button>
 
           {results.length === 0 ? (
             <p class="empty-state">Nessun posto entro il raggio scelto.</p>

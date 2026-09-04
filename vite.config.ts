@@ -24,6 +24,14 @@ export default defineConfig({
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Con la PWA installata su Android, "Condividi" dentro Google Maps può
+        // mandare nome/indirizzo/link direttamente qui: l'app apre l'aggiunta
+        // già compilata invece di far copiare e incollare a mano.
+        share_target: {
+          action: '.',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
       },
       workbox: {
         // I tile della mappa e le risposte di Nominatim sono gestiti dai loro

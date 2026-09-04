@@ -42,6 +42,8 @@ export interface GeocodeCandidate {
   lng: number;
   displayName: string;
   importance: number;
+  /** riquadro [lonMin, latMin, lonMax, latMax] restituito da Nominatim, usato per limitare le ricerche a una città */
+  bbox?: [number, number, number, number];
 }
 
 export interface GeocodeCacheEntry {

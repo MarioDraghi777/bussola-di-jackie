@@ -4,7 +4,7 @@ import { places } from '../../stores/placesStore';
 import { CategoryPicker } from '../places/CategoryPicker';
 import { TagEditor } from '../places/TagEditor';
 import { ManualPinPicker } from '../places/ManualPinPicker';
-import { GmapsLinkSheet } from '../places/GmapsLinkSheet';
+import { MapsShareSheet } from '../places/MapsShareSheet';
 import {
   chooseCandidateForRow,
   setManualCoordsForRow,
@@ -159,9 +159,10 @@ export function ReviewRow(props: { row: ImportDraftRow }) {
       )}
 
       {gmapsLinkOpen && (
-        <GmapsLinkSheet
-          onConfirm={(coords) => {
-            setManualCoordsForRow(row.id, coords, undefined, 'gmaps_link');
+        <MapsShareSheet
+          city={row.city}
+          onConfirm={(coords, label) => {
+            setManualCoordsForRow(row.id, coords, label, 'gmaps_link');
             setGmapsLinkOpen(false);
           }}
           onClose={() => setGmapsLinkOpen(false)}
