@@ -70,7 +70,9 @@ Alla fine (o anche durante) arrivi alla **revisione**: ogni riga mostra cosa ha 
 
 ### PWA
 
-Da un browser mobile, "Aggiungi a schermata Home" installa l'app con icona propria e funzionamento a schermo intero. Una volta aperta almeno una volta online, consultazione, ricerca e navigazione funzionano anche offline: serve rete solo per geocodificare un posto nuovo o scaricare i tile della mappa mai visti prima (che poi restano in cache).
+Da un browser mobile, "Aggiungi a schermata Home" installa l'app con icona propria e funzionamento a schermo intero.
+
+> **Attenzione, vale soprattutto su iPhone**: l'app installata sulla Home e il sito aperto nel browser hanno **archivi dati separati**, pur essendo lo stesso indirizzo. I posti salvati da una parte non compaiono dall'altra. Conviene scegliere un solo contesto (di solito l'app installata, anche perché è più al riparo dalle pulizie automatiche di Safari) e usare sempre quello. In **Impostazioni → Dove sono salvati i dati** l'app dice in quale dei due ti trovi; per unire due elenchi basta un export JSON da un lato e un reimport dall'altro (i posti con lo stesso id vengono aggiornati, non duplicati). Una volta aperta almeno una volta online, consultazione, ricerca e navigazione funzionano anche offline: serve rete solo per geocodificare un posto nuovo o scaricare i tile della mappa mai visti prima (che poi restano in cache).
 
 ## Come aggiungere una categoria nuova
 

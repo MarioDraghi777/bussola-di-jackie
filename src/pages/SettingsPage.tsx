@@ -1,9 +1,10 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { places, reloadPlaces } from '../stores/placesStore';
 import { reloadCategories } from '../stores/categoriesStore';
 import { exportJson, exportCsv, downloadTextFile, importJson, type ImportJsonResult } from '../services/exportImport';
 import { CategoryManager } from '../components/categories/CategoryManager';
 import { ShareInvite } from '../components/settings/ShareInvite';
+import { isStandalone, storageUsageLabel } from '../utils/platform';
 import { navigate } from '../router';
 
 function dateStamp(): string {
@@ -13,7 +14,13 @@ function dateStamp(): string {
 export function SettingsPage() {
   const [importResult, setImportResult] = useState<ImportJsonResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const standalone = isStandalone();
+
+  useEffect(() => {
+    storageUsageLabel().then(setUsage);
+  }, []);
 
   async function handleExportJson() {
     const json = await exportJson();
@@ -103,6 +110,23 @@ export function SettingsPage() {
         <h2 class="settings-heading">Categorie</h2>
         <p class="hint-text">Le categorie sono libere: aggiungine di nuove o modifica quelle esistenti in qualsiasi momento.</p>
         <CategoryManager />
+      </section>
+
+      <section class="settings-section">
+        <h2 class="settings-heading">Dove sono salvati i dati</h2>
+        <div class="storage-context">
+          <strong>{standalone ? '📱 App installata (icona sulla Home)' : '🌐 Browser'}</strong>
+          {usage && <span class="hint-text"> · {usage} usati</span>}
+        </div>
+        <p class="hint-text">
+          Attenzione: <strong>l'app installata e il browser hanno archivi separati</strong>, soprattutto su iPhone. Stesso
+          indirizzo, ma i posti salvati da una parte non compaiono dall'altra. Conviene sceglierne uno — di solito l'app
+          installata, che è anche più al riparo dalle pulizie automatiche del browser — e usare sempre quello.
+        </p>
+        <p class="hint-text">
+          Per unire due elenchi: da un lato fai "Esporta backup JSON", dall'altro "Reimporta un backup JSON". I posti con lo
+          stesso id vengono aggiornati, gli altri aggiunti, quindi non si creano doppioni.
+        </p>
       </section>
 
       <section class="settings-section">

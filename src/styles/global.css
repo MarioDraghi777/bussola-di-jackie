@@ -589,6 +589,22 @@ a {
   margin-bottom: 8px;
 }
 
+.storage-context {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.storage-context .hint-text {
+  margin: 0;
+}
+
 /* ---------- Gestione categorie ---------- */
 
 .category-manager-list {
